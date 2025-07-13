@@ -160,26 +160,211 @@ while (true)
 ```csharp
 // Enable GPU acceleration
 Cv2.SetUseOptimized(true);
-Cv2.Cuda.SetDevice(0);
+if (Cv2.Cuda.GetCudaEnabledDeviceCount() > 0)
+{
+    Cv2.Cuda.SetDevice(0);
+}
 ```
 
 2. **Memory Management**:
 ```csharp
-// Proper disposal of OpenCV objects
+// Proper disposal of OpenCV objects with async disposal
 using (var mat = new Mat())
 {
     // Processing code
 }
+
+// Object pooling for frequent allocations
+private readonly ObjectPool<Mat> _matPool = ObjectPool.Create<Mat>();
 ```
 
 3. **Adaptive Capture**:
 ```csharp
-// Only analyze changed regions
+// Only analyze changed regions with frame differencing
 var diff = new Mat();
 Cv2.Absdiff(lastFrame, currentFrame, diff);
-if (Cv2.CountNonZero(diff) > threshold)
+Cv2.Threshold(diff, diff, 30, 255, ThresholdTypes.Binary);
+var changePercent = Cv2.CountNonZero(diff) / (double)(diff.Width * diff.Height);
+if (changePercent > 0.05) // 5% change threshold
 {
     ProcessFrame(currentFrame);
+}
+```
+
+4. **Async Processing**:
+```csharp
+// Parallel processing of vision and audio
+var visionTask = Task.Run(() => ProcessVision());
+var audioTask = Task.Run(() => ProcessAudio());
+await Task.WhenAll(visionTask, audioTask);
+```
+
+5. **Caching and Rate Limiting**:
+```csharp
+// Cache AI responses to avoid redundant calls
+private readonly MemoryCache _responseCache = new MemoryCache();
+private readonly SemaphoreSlim _aiThrottle = new SemaphoreSlim(1, 1);
+```
+
+## Error Handling & Logging
+
+### Structured Logging with Serilog
+```csharp
+// Program.cs
+using Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.Console()
+    .WriteTo.File("logs/app-.log", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+```
+
+### Robust Error Handling
+```csharp
+public async Task<string> GetResponseWithRetry(string context, int maxRetries = 3)
+{
+    for (int i = 0; i < maxRetries; i++)
+    {
+        try
+        {
+            var response = await _ollama.QueryOllama(context);
+            Log.Information("Successfully got AI response on attempt {Attempt}", i + 1);
+            return response;
+        }
+        catch (HttpRequestException ex)
+        {
+            Log.Warning("Network error on attempt {Attempt}: {Error}", i + 1, ex.Message);
+            if (i == maxRetries - 1)
+            {
+                Log.Error("All AI provider attempts failed, using fallback");
+                return await _hf.CallHuggingFace(context);
+            }
+            await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, i))); // Exponential backoff
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Unexpected error on attempt {Attempt}", i + 1);
+            throw;
+        }
+    }
+    return string.Empty;
+}
+```
+
+### Circuit Breaker Pattern
+```csharp
+public class CircuitBreakerAIProvider
+{
+    private int _failureCount = 0;
+    private DateTime _lastFailureTime = DateTime.MinValue;
+    private readonly int _threshold = 5;
+    private readonly TimeSpan _timeout = TimeSpan.FromMinutes(1);
+    
+    public async Task<string> GetResponse(string prompt)
+    {
+        if (_failureCount >= _threshold && 
+            DateTime.UtcNow - _lastFailureTime < _timeout)
+        {
+            throw new InvalidOperationException("Circuit breaker is open");
+        }
+        
+        try
+        {
+            var result = await CallAI(prompt);
+            _failureCount = 0; // Reset on success
+            return result;
+        }
+        catch
+        {
+            _failureCount++;
+            _lastFailureTime = DateTime.UtcNow;
+            throw;
+        }
+    }
+}
+```
+
+## Best Practices & Code Quality
+
+### 1. Resource Management
+```csharp
+// Always implement IDisposable for classes that hold unmanaged resources
+public class VisionComponent : IDisposable
+{
+    private bool _disposed = false;
+    
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            // Dispose managed resources
+            _disposed = true;
+        }
+    }
+}
+
+// Use object pooling for frequently allocated objects
+private readonly ObjectPool<Mat> _matPool = ObjectPool.Create<Mat>();
+```
+
+### 2. Async/Await Best Practices
+```csharp
+// Use ConfigureAwait(false) for library code
+public async Task<string> ProcessAsync()
+{
+    var result = await SomeAsyncOperation().ConfigureAwait(false);
+    return result;
+}
+
+// Use cancellation tokens for long-running operations
+public async Task ProcessWithCancellation(CancellationToken cancellationToken)
+{
+    while (!cancellationToken.IsCancellationRequested)
+    {
+        await DoWork();
+        await Task.Delay(1000, cancellationToken);
+    }
+}
+```
+
+### 3. Configuration Validation
+```csharp
+public class AIConfiguration
+{
+    public string OllamaEndpoint { get; set; }
+    public string HF_Token { get; set; }
+    
+    public void Validate()
+    {
+        if (string.IsNullOrEmpty(OllamaEndpoint))
+            throw new ArgumentException("OllamaEndpoint is required");
+        
+        if (!Uri.TryCreate(OllamaEndpoint, UriKind.Absolute, out _))
+            throw new ArgumentException("OllamaEndpoint must be a valid URL");
+    }
+}
+```
+
+### 4. Monitoring & Metrics
+```csharp
+public class PerformanceMetrics
+{
+    private static readonly Counter ProcessedFrames = 
+        Metrics.CreateCounter("processed_frames_total", "Total processed frames");
+    
+    private static readonly Histogram ProcessingDuration = 
+        Metrics.CreateHistogram("processing_duration_seconds", "Processing duration");
+    
+    public static void RecordFrameProcessed()
+    {
+        ProcessedFrames.Inc();
+    }
+    
+    public static IDisposable TimeOperation()
+    {
+        return ProcessingDuration.NewTimer();
+    }
 }
 ```
 
@@ -199,3 +384,45 @@ This enhanced version includes:
 4. Hybrid AI routing system
 5. Detailed configuration examples
 6. Performance optimization techniques
+
+### Optimized Model Selection
+
+**Recommended: DeepSeek Coder 1.3B Instruct**
+```bash
+# Pull the optimized model
+ollama pull deepseek-coder:1.3b-instruct
+```
+
+**Model Comparison:**
+| Model | Size | Use Case | Performance |
+|-------|------|----------|-------------|
+| `deepseek-coder:1.3b-instruct` | 776 MB | **RECOMMENDED** - Code analysis, structured responses | ⭐⭐⭐⭐⭐ |
+| `tinyllama:latest` | 637 MB | Ultra-light, basic responses | ⭐⭐⭐ |
+| `phi3:mini` | 2.2 GB | Better quality, more resource intensive | ⭐⭐⭐⭐ |
+
+**Why DeepSeek Coder 1.3B Instruct:**
+- ✅ Optimized for instruction-following
+- ✅ Excellent at analyzing structured content (perfect for screen/voice data)
+- ✅ Ultra-lightweight (776 MB)
+- ✅ Fast inference time
+- ✅ Good balance of quality vs. speed
+
+```csharp
+// Optimized prompt structure for DeepSeek Coder
+private string OptimizePromptForDeepSeekCoder(string context)
+{
+    return $@"# Screen & Voice Analysis Task
+
+## Context:
+{context}
+
+## Instructions:
+Analyze the provided screen content and voice input. Provide a concise, actionable response in this format:
+
+**Analysis:** [Brief summary of what you observe]
+**Action:** [Suggested action or response]  
+**Priority:** [High/Medium/Low]
+
+Keep response under 200 words. Focus on the most important insights.";
+}
+```

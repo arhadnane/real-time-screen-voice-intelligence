@@ -27,9 +27,10 @@ An intelligent C# application that combines real-time screen capture, voice tran
 
 ## Prerequisites
 
-1. .NET 7.0 SDK or later
+1. .NET 7.0 SDK or later  
 2. Visual Studio 2022 or VS Code
 3. Windows 10/11 (required for Windows Forms screen capture)
+4. [Ollama](https://ollama.ai/download) - Local AI inference server
 
 ## Setup Instructions
 
@@ -39,7 +40,27 @@ git clone <repository-url>
 cd "Real-Time Screen and Voice Intelligence"
 ```
 
-### 2. Download Required Data Files
+### 2. AI Model Setup (New & Improved!)
+We use **DeepSeek Coder 1.3B Instruct** - an optimized, lightweight model:
+
+```bash
+# Option 1: Automatic setup (Recommended)
+./setup-model.bat
+# or for PowerShell users
+./setup-model.ps1
+
+# Option 2: Manual setup
+ollama pull deepseek-coder:1.3b-instruct
+```
+
+**Why DeepSeek Coder 1.3B?**
+- ✅ Ultra-lightweight: Only 776 MB (vs 4.1 GB for Mistral)
+- ✅ Optimized for instruction-following and code analysis
+- ✅ Excellent at analyzing structured content (perfect for screen/voice data)
+- ✅ Fast inference time - ideal for real-time applications
+- ✅ Better performance than TinyLlama despite similar size
+
+### 3. Download Required Data Files
 
 **Tesseract Language Data:**
 - Download `eng.traineddata` and `fra.traineddata` from [tesseract-ocr/tessdata](https://github.com/tesseract-ocr/tessdata)
