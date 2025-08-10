@@ -1,0 +1,109 @@
+@page "/vision"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Nav
+
+<h3>Vision & OCR (Temps Réel)</h3>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Flux Écran</span>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick='()=>ChangeMask("Black")'>Noir</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick='()=>ChangeMask("Blur")'>Blur</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick='()=>ChangeMask("Gaussian")'>Gauss</button>
+                </div>
+            </div>
+            <div class="card-body" style="min-height:360px">
+                @if(_lastFrameBase64 is null)
+                {
+                    <em>En attente d'image...</em>
+                }
+                else
+                {
+                    <img style="max-width:100%;border:1px solid #444" src="data:image/png;base64,@_lastFrameBase64" />
+                }
+            </div>
+            <div class="card-footer small text-muted">
+                @_lastTimestamp?.ToLocalTime().ToString("HH:mm:ss.fff")
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header">Texte OCR</div>
+            <div class="card-body">
+                <pre style="max-height:340px; overflow:auto">@(_lastText ?? "(aucun)")</pre>
+            </div>
+        </div>
+        <div class="card mb-3">
+            <div class="card-header">Paramètres</div>
+            <div class="card-body">
+                <div class="input-group input-group-sm mb-2" style="max-width:220px">
+                    <span class="input-group-text">Blur factor</span>
+                    <input class="form-control" type="number" min="2" max="32" @bind="_blurFactor" />
+                    <button class="btn btn-outline-primary" @onclick="ApplyBlurFactor">Appliquer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private HubConnection? _hub;
+    private string? _lastFrameBase64;
+    private string? _lastText;
+    private DateTime? _lastTimestamp;
+    private int _blurFactor = 8;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/realtime"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<object>("ScreenFrame", payload =>
+        {
+            try
+            {
+                var dict = System.Text.Json.JsonSerializer.Serialize(payload);
+                using var doc = System.Text.Json.JsonDocument.Parse(dict);
+                var root = doc.RootElement;
+                _lastFrameBase64 = root.GetProperty("imageBase64").GetString();
+                _lastText = root.TryGetProperty("text", out var t) ? t.GetString() : null;
+                if (root.TryGetProperty("timestamp", out var ts))
+                {
+                    _lastTimestamp = ts.GetDateTime();
+                }
+                InvokeAsync(StateHasChanged);
+            }
+            catch { }
+        });
+
+        await _hub.StartAsync();
+        await _hub.SendAsync("Subscribe", "screen");
+    }
+
+    private async Task ChangeMask(string style)
+    {
+        try
+        {
+            var url = $"/api/vision/mask?style={style}&blur={_blurFactor}";
+            using var client = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
+            await client.PostAsync(url, null);
+        }
+        catch { }
+    }
+
+    private Task ApplyBlurFactor() => ChangeMask("Gaussian");
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            try { await _hub.DisposeAsync(); } catch { }
+        }
+    }
+}

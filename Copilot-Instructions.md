@@ -387,42 +387,40 @@ This enhanced version includes:
 
 ### Optimized Model Selection
 
-**Recommended: DeepSeek Coder 1.3B Instruct**
+**Recommended: Phi3 Mini**
 ```bash
 # Pull the optimized model
-ollama pull deepseek-coder:1.3b-instruct
+ollama pull phi3:mini
 ```
 
 **Model Comparison:**
 | Model | Size | Use Case | Performance |
 |-------|------|----------|-------------|
-| `deepseek-coder:1.3b-instruct` | 776 MB | **RECOMMENDED** - Code analysis, structured responses | ⭐⭐⭐⭐⭐ |
+| `phi3:mini` | 2.2 GB | **RECOMMENDED** - Excellent general intelligence, great reasoning | ⭐⭐⭐⭐⭐ |
+| `deepseek-coder:1.3b-instruct` | 776 MB | Ultra-light, code-focused analysis | ⭐⭐⭐⭐ |
 | `tinyllama:latest` | 637 MB | Ultra-light, basic responses | ⭐⭐⭐ |
-| `phi3:mini` | 2.2 GB | Better quality, more resource intensive | ⭐⭐⭐⭐ |
 
-**Why DeepSeek Coder 1.3B Instruct:**
-- ✅ Optimized for instruction-following
-- ✅ Excellent at analyzing structured content (perfect for screen/voice data)
-- ✅ Ultra-lightweight (776 MB)
-- ✅ Fast inference time
-- ✅ Good balance of quality vs. speed
+**Why Phi3 Mini:**
+- ✅ Superior reasoning and comprehension abilities
+- ✅ Excellent at following complex instructions
+- ✅ Outstanding quality-to-size ratio (2.2 GB)
+- ✅ Great for real-time analysis and decision making
+- ✅ Better contextual understanding than smaller models
 
 ```csharp
-// Optimized prompt structure for DeepSeek Coder
-private string OptimizePromptForDeepSeekCoder(string context)
+// Optimized prompt structure for Phi3
+private string OptimizePromptForPhi3(string context)
 {
-    return $@"# Screen & Voice Analysis Task
+    return $@"You are an intelligent assistant analyzing screen content and voice input in real-time.
 
-## Context:
+Current situation:
 {context}
 
-## Instructions:
-Analyze the provided screen content and voice input. Provide a concise, actionable response in this format:
+Please provide a brief analysis following this format:
+**Analysis:** What do you observe from the screen and voice data?
+**Recommendation:** What action should be taken?
+**Priority:** High/Medium/Low
 
-**Analysis:** [Brief summary of what you observe]
-**Action:** [Suggested action or response]  
-**Priority:** [High/Medium/Low]
-
-Keep response under 200 words. Focus on the most important insights.";
+Keep your response concise and actionable (under 150 words).";
 }
 ```

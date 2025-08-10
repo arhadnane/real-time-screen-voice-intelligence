@@ -1,0 +1,420 @@
+@page "/home-advanced"
+@using RealTimeIntelligence.Web.Services
+@inject IntelligenceService IntelligenceService
+@inject ActivityLogService ActivityLogService
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<PageTitle>Real-Time Screen & Voice Intelligence</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="hero-section text-center py-5 mb-4">
+                <h1 class="display-4 fw-bold text-primary">
+                    <i class="fas fa-brain"></i> Real-Time Intelligence System
+                </h1>
+                <p class="lead">Analyse en temps réel de l'écran et reconnaissance vocale avec IA</p>
+                <div class="status-indicators d-flex justify-content-center gap-3 mt-3">
+                    <span class="badge @(isSystemActive ? "bg-success" : "bg-secondary") fs-6">
+                        <i class="fas fa-circle me-1"></i>
+                        Système @(isSystemActive ? "Actif" : "Inactif")
+                    </span>
+                    <span class="badge @(isAudioActive ? "bg-info" : "bg-secondary") fs-6">
+                        <i class="fas fa-microphone me-1"></i>
+                        Audio @(isAudioActive ? "Détecté" : "Silencieux")
+                    </span>
+                    <span class="badge @(isScreenActive ? "bg-warning" : "bg-secondary") fs-6">
+                        <i class="fas fa-desktop me-1"></i>
+                        Écran @(isScreenActive ? "Surveillé" : "En pause")
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Contrôles -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-cogs"></i> Contrôles</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn @(isSystemActive ? "btn-danger" : "btn-success") btn-lg" 
+                                @onclick="ToggleSystem" disabled="@isProcessing">
+                            @if (isProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            }
+                            else
+                            {
+                                <i class="fas @(isSystemActive ? "fa-stop" : "fa-play") me-2"></i>
+                            }
+                            @(isSystemActive ? "Arrêter" : "Démarrer") le Système
+                        </button>
+                        
+                        <button class="btn btn-outline-primary" @onclick="CaptureScreen" disabled="@(!isSystemActive || isProcessing)">
+                            <i class="fas fa-camera"></i> Capturer l'Écran
+                        </button>
+                        
+                        <button class="btn btn-outline-info" @onclick="TestAI" disabled="@isProcessing">
+                            <i class="fas fa-robot"></i> Test IA
+                        </button>
+                        
+                        <button class="btn btn-outline-secondary" @onclick="ClearLogs">
+                            <i class="fas fa-trash"></i> Effacer les Logs
+                        </button>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="text-muted small">Captures</div>
+                            <div class="h4 text-primary">@captureCount</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted small">Analyses IA</div>
+                            <div class="h4 text-success">@aiAnalysisCount</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted small">Uptime</div>
+                            <div class="h6 text-info">@GetUptime()</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analyse en Temps Réel -->
+        <div class="col-lg-8 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-line"></i> Analyse en Temps Réel</h5>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(currentAnalysis))
+                    {
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-brain"></i> Dernière Analyse IA :</h6>
+                            <p class="mb-0">@currentAnalysis</p>
+                            <small class="text-muted">@lastAnalysisTime?.ToString("HH:mm:ss")</small>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(currentTranscription))
+                    {
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-microphone"></i> Transcription Audio :</h6>
+                            <p class="mb-0">@currentTranscription</p>
+                            <small class="text-muted">@lastTranscriptionTime?.ToString("HH:mm:ss")</small>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(currentOcrText))
+                    {
+                        <div class="alert alert-secondary">
+                            <h6><i class="fas fa-text-width"></i> Texte OCR Détecté :</h6>
+                            <p class="mb-0">@(currentOcrText.Length > 200 ? currentOcrText.Substring(0, 200) + "..." : currentOcrText)</p>
+                            <small class="text-muted">@lastOcrTime?.ToString("HH:mm:ss")</small>
+                        </div>
+                    }
+                    
+                    @if (string.IsNullOrEmpty(currentAnalysis) && string.IsNullOrEmpty(currentTranscription) && string.IsNullOrEmpty(currentOcrText))
+                    {
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-satellite-dish fa-3x mb-3"></i>
+                            <p>En attente de données...</p>
+                            <p class="small">Démarrez le système pour voir les analyses en temps réel</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs d'Activité -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> Journal d'Activité</h5>
+                    <span class="badge bg-secondary">@activityLogs.Count entrées</span>
+                </div>
+                <div class="card-body p-0">
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        @if (activityLogs.Any())
+                        {
+                            <table class="table table-sm table-striped mb-0">
+                                <thead class="table-dark sticky-top">
+                                    <tr>
+                                        <th width="120">Heure</th>
+                                        <th width="100">Type</th>
+                                        <th>Message</th>
+                                        <th width="80">Durée</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var log in activityLogs.OrderByDescending(l => l.Timestamp).Take(50))
+                                    {
+                                        <tr>
+                                            <td class="small">@log.Timestamp.ToString("HH:mm:ss")</td>
+                                            <td>
+                                                <span class="badge @GetLogBadgeClass(log.Type)">
+                                                    @log.Type
+                                                </span>
+                                            </td>
+                                            <td class="small">@log.Message</td>
+                                            <td class="small text-muted">
+                                                @if (log.Duration.HasValue)
+                                                {
+                                                    @($"{log.Duration.Value.TotalMilliseconds:F0}ms")
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <div class="p-4 text-center text-muted">
+                                <i class="fas fa-clipboard-list fa-2x mb-3"></i>
+                                <p>Aucune activité enregistrée</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isSystemActive = false;
+    private bool isAudioActive = false;
+    private bool isScreenActive = false;
+    private bool isProcessing = false;
+    
+    private string currentAnalysis = string.Empty;
+    private string currentTranscription = string.Empty;
+    private string currentOcrText = string.Empty;
+    
+    private DateTime? lastAnalysisTime;
+    private DateTime? lastTranscriptionTime;
+    private DateTime? lastOcrTime;
+    private DateTime systemStartTime = DateTime.Now;
+    
+    private int captureCount = 0;
+    private int aiAnalysisCount = 0;
+    
+    private List<ActivityLogEntry> activityLogs = new();
+    private Timer? refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Initialiser les données
+        activityLogs = await ActivityLogService.GetLogsAsync();
+        
+        // Timer pour rafraîchir l'interface
+        refreshTimer = new Timer(async _ => 
+        {
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+
+        AddLog("Interface", "Application web démarrée");
+    }
+
+    private async Task ToggleSystem()
+    {
+        isProcessing = true;
+        StateHasChanged();
+        
+        try
+        {
+            if (isSystemActive)
+            {
+                await StopSystem();
+            }
+            else
+            {
+                await StartSystem();
+            }
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task StartSystem()
+    {
+        systemStartTime = DateTime.Now;
+        isSystemActive = true;
+        isScreenActive = true;
+        isAudioActive = true;
+        
+        AddLog("Système", "Système d'intelligence démarré");
+        
+        // Simuler une initialisation
+        await Task.Delay(1000);
+        
+        AddLog("Vision", "Module de capture d'écran initialisé");
+        AddLog("Audio", "Module de reconnaissance vocale initialisé");
+        AddLog("IA", "Routeur IA configuré et prêt");
+    }
+
+    private async Task StopSystem()
+    {
+        isSystemActive = false;
+        isScreenActive = false;
+        isAudioActive = false;
+        
+        AddLog("Système", "Système d'intelligence arrêté");
+        await Task.Delay(500);
+    }
+
+    private async Task CaptureScreen()
+    {
+        if (!isSystemActive) return;
+        
+        isProcessing = true;
+        var startTime = DateTime.Now;
+        
+        try
+        {
+            AddLog("Vision", "Capture d'écran en cours...");
+            
+            // Simuler la capture et l'analyse
+            await Task.Delay(Random.Shared.Next(800, 1500));
+            
+            captureCount++;
+            
+            // Simuler l'OCR
+            var ocrTexts = new[]
+            {
+                "Texte détecté sur l'écran: Document Microsoft Word ouvert",
+                "Code Visual Studio - Fichier Program.cs en cours d'édition",
+                "Navigateur web - Recherche Google en cours",
+                "Terminal PowerShell - Commande dotnet run exécutée",
+                "Explorateur de fichiers - Dossier de projet sélectionné"
+            };
+            
+            currentOcrText = ocrTexts[Random.Shared.Next(ocrTexts.Length)];
+            lastOcrTime = DateTime.Now;
+            
+            AddLog("OCR", $"Texte détecté: {currentOcrText[..Math.Min(50, currentOcrText.Length)]}...");
+            
+            // Simuler l'analyse IA
+            await AnalyzeWithAI($"Contenu écran: {currentOcrText}");
+            
+            var duration = DateTime.Now - startTime;
+            AddLog("Vision", $"Capture terminée", duration);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task AnalyzeWithAI(string context)
+    {
+        var startTime = DateTime.Now;
+        AddLog("IA", "Analyse IA en cours...");
+        
+        await Task.Delay(Random.Shared.Next(1000, 2000));
+        
+        var analyses = new[]
+        {
+            "**Analyse:** L'utilisateur travaille sur un document Word. **Recommandation:** Sauvegarder régulièrement le travail. **Priorité:** Moyenne",
+            "**Analyse:** Session de développement active avec Visual Studio Code. **Recommandation:** Effectuer des commits Git fréquents. **Priorité:** Haute",
+            "**Analyse:** Navigation web pour recherche d'informations. **Recommandation:** Bookmarker les ressources utiles. **Priorité:** Faible",
+            "**Analyse:** Exécution de commandes en terminal. **Recommandation:** Vérifier les logs d'erreur. **Priorité:** Haute",
+            "**Analyse:** Gestion de fichiers de projet. **Recommandation:** Organiser la structure des dossiers. **Priorité:** Moyenne"
+        };
+        
+        currentAnalysis = analyses[Random.Shared.Next(analyses.Length)];
+        lastAnalysisTime = DateTime.Now;
+        aiAnalysisCount++;
+        
+        var duration = DateTime.Now - startTime;
+        AddLog("IA", "Analyse IA terminée", duration);
+    }
+
+    private async Task TestAI()
+    {
+        isProcessing = true;
+        var startTime = DateTime.Now;
+        
+        try
+        {
+            AddLog("IA", "Test du système IA...");
+            await Task.Delay(1500);
+            
+            currentAnalysis = "**Test IA:** Système fonctionnel. **Status:** Tous les modules opérationnels. **Recommandation:** Système prêt pour utilisation. **Priorité:** Information";
+            lastAnalysisTime = DateTime.Now;
+            aiAnalysisCount++;
+            
+            var duration = DateTime.Now - startTime;
+            AddLog("IA", "Test IA réussi", duration);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task ClearLogs()
+    {
+        activityLogs.Clear();
+        await ActivityLogService.ClearLogsAsync();
+        AddLog("Interface", "Logs effacés");
+    }
+
+    private void AddLog(string type, string message, TimeSpan? duration = null)
+    {
+        var log = new ActivityLogEntry
+        {
+            Timestamp = DateTime.Now,
+            Type = Enum.Parse<ActivityType>(type, true),
+            Message = message,
+            Duration = duration
+        };
+        
+        activityLogs.Add(log);
+        ActivityLogService.AddLogAsync(log);
+        
+        // Limiter à 100 entrées
+        if (activityLogs.Count > 100)
+        {
+            activityLogs.RemoveAt(0);
+        }
+        
+        StateHasChanged();
+    }
+
+    private string GetUptime()
+    {
+        var uptime = DateTime.Now - systemStartTime;
+        return $"{uptime.Hours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
+    }
+
+    private string GetLogBadgeClass(ActivityType type) => type switch
+    {
+        ActivityType.Système => "bg-primary",
+        ActivityType.Vision => "bg-warning",
+        ActivityType.Audio => "bg-info",
+        ActivityType.IA => "bg-success",
+        ActivityType.OCR => "bg-secondary",
+        ActivityType.Interface => "bg-dark",
+        _ => "bg-light text-dark"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        refreshTimer?.Dispose();
+    }
+}

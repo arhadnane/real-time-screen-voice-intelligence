@@ -40,8 +40,8 @@ git clone <repository-url>
 cd "Real-Time Screen and Voice Intelligence"
 ```
 
-### 2. AI Model Setup (New & Improved!)
-We use **DeepSeek Coder 1.3B Instruct** - an optimized, lightweight model:
+### 2. AI Model Setup (Enhanced Performance!)
+We use **Phi3 Mini** - an outstanding model with superior reasoning abilities:
 
 ```bash
 # Option 1: Automatic setup (Recommended)
@@ -50,15 +50,16 @@ We use **DeepSeek Coder 1.3B Instruct** - an optimized, lightweight model:
 ./setup-model.ps1
 
 # Option 2: Manual setup
-ollama pull deepseek-coder:1.3b-instruct
+ollama pull phi3:mini
 ```
 
-**Why DeepSeek Coder 1.3B?**
-- ✅ Ultra-lightweight: Only 776 MB (vs 4.1 GB for Mistral)
-- ✅ Optimized for instruction-following and code analysis
-- ✅ Excellent at analyzing structured content (perfect for screen/voice data)
-- ✅ Fast inference time - ideal for real-time applications
-- ✅ Better performance than TinyLlama despite similar size
+**Why Phi3 Mini?**
+- ✅ Superior reasoning and comprehension: Best-in-class intelligence
+- ✅ Excellent instruction following and contextual understanding
+- ✅ Outstanding quality-to-size ratio at 2.2 GB
+- ✅ Perfect for real-time analysis and complex decision making
+- ✅ Much better performance than ultra-light models
+- ✅ Developed by Microsoft with cutting-edge architecture
 
 ### 3. Download Required Data Files
 

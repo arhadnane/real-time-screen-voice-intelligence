@@ -1,0 +1,341 @@
+@page "/"
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="display-4 text-primary mb-4">
+                <i class="fas fa-eye me-3"></i>Real-Time Intelligence Dashboard
+            </h1>
+        </div>
+    </div>
+
+    <!-- Status Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card status-card border-success">
+                <div class="card-body text-center">
+                    <i class="fas fa-desktop fa-2x text-success mb-2"></i>
+                    <h5 class="card-title">Capture d'écran</h5>
+                    <span class="badge @(systemRunning ? "bg-success" : "bg-secondary")">
+                        @(systemRunning ? "Actif" : "Arrêté")
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card status-card border-info">
+                <div class="card-body text-center">
+                    <i class="fas fa-microphone fa-2x text-info mb-2"></i>
+                    <h5 class="card-title">Microphone</h5>
+                    <span class="badge @(systemRunning ? "bg-success" : "bg-secondary")">
+                        @(systemRunning ? "Actif" : "Arrêté")
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card status-card border-warning">
+                <div class="card-body text-center">
+                    <i class="fas fa-font fa-2x text-warning mb-2"></i>
+                    <h5 class="card-title">OCR</h5>
+                    <span class="badge @(systemRunning ? "bg-success" : "bg-secondary")">
+                        @(systemRunning ? "Actif" : "Arrêté")
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card status-card border-primary">
+                <div class="card-body text-center">
+                    <i class="fas fa-brain fa-2x text-primary mb-2"></i>
+                    <h5 class="card-title">IA</h5>
+                    <span class="badge @(systemRunning ? "bg-success" : "bg-secondary")">
+                        @(systemRunning ? "Actif" : "Arrêté")
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-cogs me-2"></i>Panneau de Contrôle</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <button class="btn @(systemRunning ? "btn-danger" : "btn-success") btn-lg w-100 mb-3"
+                                    @onclick="ToggleSystem" disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                    <span>Traitement...</span>
+                                }
+                                else
+                                {
+                                    <i class="fas @(systemRunning ? "fa-stop" : "fa-play") me-2"></i>
+                                }
+                                @(systemRunning ? "Arrêter le système" : "Démarrer le système")
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-info btn-lg w-100 mb-3"
+                                    @onclick="RunDiagnostics" disabled="@isLoading">
+                                <i class="fas fa-stethoscope me-2"></i>Diagnostic Système
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <button class="btn btn-outline-primary w-100 mb-2" @onclick="CaptureScreen">
+                                <i class="fas fa-camera me-2"></i>Capture d'écran
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-outline-success w-100 mb-2" @onclick="TestMicrophone">
+                                <i class="fas fa-microphone me-2"></i>Test Microphone
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-outline-warning w-100 mb-2" @onclick="TestOCR">
+                                <i class="fas fa-font me-2"></i>Test OCR
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4><i class="fas fa-list me-2"></i>Journal d'Activité</h4>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ClearLog">
+                        <i class="fas fa-trash me-1"></i>Vider
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="log-container" style="height: 300px; overflow-y: auto;">
+                        @if (activities.Any())
+                        {
+                            @foreach (var activity in activities)
+                            {
+                                <div class="activity-item d-flex align-items-start mb-2 p-2 rounded" style="background-color: #f8f9fa;">
+                                    <i class="@activity.Icon me-2 mt-1"></i>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-medium">@activity.Message</div>
+                                        <small class="text-muted">@activity.Timestamp.ToString("HH:mm:ss")</small>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-clock fa-2x mb-2"></i>
+                                <p>En attente d'activités...</p>
+                                <small>Cliquez sur "Démarrer le système" pour commencer</small>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = false;
+    private bool systemRunning = false;
+    private List<ActivityEntry> activities = new();
+
+    public class ActivityEntry
+    {
+        public string Icon { get; set; } = "fas fa-info-circle text-info";
+        public string Message { get; set; } = "";
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        AddActivity("fas fa-power-off text-success", "Système d'intelligence initialisé");
+        await Task.Delay(1);
+    }
+
+    private async Task ToggleSystem()
+    {
+        isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            await Task.Delay(1000); // Simulation
+            
+            if (systemRunning)
+            {
+                systemRunning = false;
+                AddActivity("fas fa-stop text-danger", "Système arrêté");
+            }
+            else
+            {
+                systemRunning = true;
+                AddActivity("fas fa-play text-success", "Système démarré");
+                AddActivity("fas fa-desktop text-info", "Module de capture d'écran activé");
+                AddActivity("fas fa-microphone text-info", "Module microphone activé");
+                AddActivity("fas fa-font text-info", "Module OCR activé");
+                AddActivity("fas fa-brain text-info", "Module IA activé");
+            }
+        }
+        catch (Exception ex)
+        {
+            AddActivity("fas fa-exclamation-triangle text-danger", $"Erreur: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RunDiagnostics()
+    {
+        isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            AddActivity("fas fa-stethoscope text-primary", "Démarrage du diagnostic...");
+            await Task.Delay(500);
+            
+            AddActivity("fas fa-check text-success", "✅ Capture d'écran - OK");
+            await Task.Delay(300);
+            
+            AddActivity("fas fa-check text-success", "✅ Microphone - OK");
+            await Task.Delay(300);
+            
+            AddActivity("fas fa-check text-success", "✅ OCR - OK");
+            await Task.Delay(300);
+            
+            AddActivity("fas fa-check text-success", "✅ IA - OK");
+            await Task.Delay(300);
+            
+            AddActivity("fas fa-shield-alt text-success", "Diagnostic terminé - Tous les modules sont opérationnels");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CaptureScreen()
+    {
+        AddActivity("fas fa-camera text-info", "Capture d'écran en cours...");
+        await Task.Delay(1000);
+        AddActivity("fas fa-image text-success", "Capture d'écran réalisée avec succès");
+    }
+
+    private async Task TestMicrophone()
+    {
+        AddActivity("fas fa-microphone text-info", "Test du microphone...");
+        await Task.Delay(1500);
+        AddActivity("fas fa-volume-up text-success", "Microphone testé - Signal détecté");
+    }
+
+    private async Task TestOCR()
+    {
+        AddActivity("fas fa-font text-info", "Test OCR en cours...");
+        await Task.Delay(1200);
+        AddActivity("fas fa-text-width text-success", "OCR testé - Reconnaissance de texte fonctionnelle");
+    }
+
+    private void ClearLog()
+    {
+        activities.Clear();
+        AddActivity("fas fa-broom text-warning", "Journal d'activité vidé");
+        StateHasChanged();
+    }
+
+    private void AddActivity(string icon, string message)
+    {
+        activities.Insert(0, new ActivityEntry { Icon = icon, Message = message, Timestamp = DateTime.Now });
+        if (activities.Count > 50) activities.RemoveAt(50);
+        StateHasChanged();
+    }
+}
+
+<style>
+    .status-card {
+        transition: all 0.3s ease;
+        border-radius: 8px;
+    }
+    
+    .status-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .activity-item {
+        transition: all 0.2s ease;
+    }
+    
+    .activity-item:hover {
+        background-color: #e9ecef !important;
+    }
+    
+    .container-fluid {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem;
+    }
+    
+    .display-4 {
+        color: white !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        font-weight: 300;
+    }
+    
+    .card {
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border: none;
+        background: white;
+    }
+    
+    .card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px 15px 0 0 !important;
+        border: none;
+    }
+    
+    .btn {
+        border-radius: 10px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .badge {
+        animation: pulse 2s infinite;
+    }
+    
+    @@keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+</style>

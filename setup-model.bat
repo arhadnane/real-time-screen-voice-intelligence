@@ -1,5 +1,5 @@
 @echo off
-echo 🚀 Setting up DeepSeek Coder model for Real-Time Screen & Voice Intelligence...
+echo 🚀 Setting up Phi3 Mini model for Real-Time Screen & Voice Intelligence...
 echo.
 
 echo 📥 Checking if Ollama is running...
@@ -15,9 +15,10 @@ if %errorlevel% neq 0 (
 echo ✅ Ollama is running!
 echo.
 
-echo 📦 Pulling DeepSeek Coder 1.3B Instruct model (776 MB)...
-echo    This may take a few minutes depending on your internet connection...
-ollama pull deepseek-coder:1.3b-instruct
+echo 📦 Pulling Phi3 Mini model (2.2 GB)...
+echo    This model offers superior reasoning and comprehension abilities.
+echo    Download may take a few minutes depending on your internet connection...
+ollama pull phi3:mini
 
 if %errorlevel% equ 0 (
     echo.
@@ -25,7 +26,7 @@ if %errorlevel% equ 0 (
     echo.
     echo 🧪 Testing the model...
     echo.
-    echo | ollama run deepseek-coder:1.3b-instruct "Hello, can you help me analyze screen content?"
+    echo | ollama run phi3:mini "Hello, can you help me analyze screen content and voice data?"
     echo.
     echo 🎉 Setup complete! Your Real-Time Screen & Voice Intelligence system is ready to use.
     echo.

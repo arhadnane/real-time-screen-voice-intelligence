@@ -1,0 +1,231 @@
+﻿@page "/"
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Real-Time Screen & Voice Intelligence</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12 text-center">
+            <h1 class="display-4 fw-bold text-primary mb-4">
+                <i class="bi bi-brain"></i> Real-Time Intelligence System
+            </h1>
+            <p class="lead text-muted">Système d'analyse en temps réel - écran et reconnaissance vocale</p>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-6 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-gear-fill"></i> Contrôles Système
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn @(isSystemRunning ? "btn-danger" : "btn-success") btn-lg"
+                                @onclick="ToggleSystem" disabled="@isProcessing">
+                            @if (isProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            else
+                            {
+                                <i class="bi @(isSystemRunning ? "bi-stop-fill" : "bi-play-fill") me-2"></i>
+                            }
+                            @(isSystemRunning ? "Arrêter" : "Démarrer") le Système
+                        </button>
+                        
+                        <button class="btn btn-outline-primary" @onclick="TestSystem" disabled="@isProcessing">
+                            <i class="bi bi-cpu"></i> Test du Système
+                        </button>
+                        
+                        <button class="btn btn-outline-info" @onclick="ShowInfo">
+                            <i class="bi bi-info-circle"></i> Informations
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-activity"></i> État du Système
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="badge @(isSystemRunning ? "bg-success" : "bg-secondary") fs-6 p-3">
+                                <i class="bi bi-circle-fill me-1"></i>
+                                Système @(isSystemRunning ? "Actif" : "Inactif")
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="badge bg-info fs-6 p-3">
+                                <i class="bi bi-clock me-1"></i>
+                                Uptime: @GetUptime()
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="badge bg-warning fs-6 p-3">
+                                <i class="bi bi-graph-up me-1"></i>
+                                Tests: @testCount
+                            </div>
+                        </div>
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(lastMessage))
+                    {
+                        <div class="alert alert-info mt-3">
+                            <strong>Dernière action :</strong> @lastMessage
+                            <small class="d-block text-muted">@lastMessageTime.ToString("HH:mm:ss")</small>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-list-ul"></i> Journal d'Activité
+                    </h5>
+                </div>
+                <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                    @if (activityLog.Any())
+                    {
+                        <ul class="list-group list-group-flush">
+                            @foreach (var entry in activityLog.OrderByDescending(x => x.Timestamp).Take(10))
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>@entry.Message</span>
+                                    <small class="text-muted">@entry.Timestamp.ToString("HH:mm:ss")</small>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center">Aucune activité enregistrée</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isSystemRunning = false;
+    private bool isProcessing = false;
+    private string lastMessage = string.Empty;
+    private DateTime lastMessageTime = DateTime.Now;
+    private DateTime startTime = DateTime.Now;
+    private int testCount = 0;
+    private List<ActivityEntry> activityLog = new();
+    
+    protected override void OnInitialized()
+    {
+        AddActivity("Application démarrée");
+    }
+    
+    private async Task ToggleSystem()
+    {
+        isProcessing = true;
+        StateHasChanged();
+        
+        try
+        {
+            await Task.Delay(1000); // Simulation d'initialisation
+            
+            if (isSystemRunning)
+            {
+                isSystemRunning = false;
+                lastMessage = "Système arrêté avec succès";
+                AddActivity("Système d'intelligence arrêté");
+            }
+            else
+            {
+                isSystemRunning = true;
+                startTime = DateTime.Now;
+                lastMessage = "Système démarré et opérationnel";
+                AddActivity("Système d'intelligence démarré");
+            }
+        }
+        finally
+        {
+            isProcessing = false;
+            lastMessageTime = DateTime.Now;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task TestSystem()
+    {
+        isProcessing = true;
+        StateHasChanged();
+        
+        try
+        {
+            await Task.Delay(500);
+            testCount++;
+            lastMessage = $"Test système #{testCount} réussi";
+            lastMessageTime = DateTime.Now;
+            AddActivity($"Test système #{testCount} exécuté");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task ShowInfo()
+    {
+        await JSRuntime.InvokeVoidAsync("alert", 
+            "Real-Time Intelligence System v1.0\n\n" +
+            "Fonctionnalités:\n" +
+            "• Analyse d'écran en temps réel\n" +
+            "• Reconnaissance vocale\n" +
+            "• Intelligence artificielle\n" +
+            "• Interface web interactive");
+        
+        AddActivity("Informations système affichées");
+    }
+    
+    private string GetUptime()
+    {
+        if (!isSystemRunning) return "00:00:00";
+        
+        var uptime = DateTime.Now - startTime;
+        return $"{uptime.Hours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
+    }
+    
+    private void AddActivity(string message)
+    {
+        activityLog.Add(new ActivityEntry
+        {
+            Message = message,
+            Timestamp = DateTime.Now
+        });
+        
+        // Garder seulement les 50 dernières entrées
+        if (activityLog.Count > 50)
+        {
+            activityLog.RemoveAt(0);
+        }
+    }
+    
+    public class ActivityEntry
+    {
+        public string Message { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+    }
+}

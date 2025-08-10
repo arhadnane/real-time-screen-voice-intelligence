@@ -1,0 +1,69 @@
+﻿@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Routing
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">
+            <i class="fas fa-brain"></i> Real-Time Intelligence
+        </a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <a class="nav-link" href="/">
+                <i class="fas fa-home"></i> Accueil
+            </a>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="vision">
+                <i class="fas fa-eye"></i> Vision & OCR
+            </a>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="audio">
+                <i class="fas fa-microphone"></i> Audio & Voix
+            </a>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="ai">
+                <i class="fas fa-robot"></i> Intelligence IA
+            </a>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="logs">
+                <i class="fas fa-list-alt"></i> Logs & Monitoring
+            </a>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="dashboard">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="settings">
+                <i class="fas fa-cog"></i> Configuration
+            </a>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="fetchdata">
+                <span class="oi oi-list-rich" aria-hidden="true"></span> Fetch data
+            </a>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

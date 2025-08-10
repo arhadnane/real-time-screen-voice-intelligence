@@ -9,6 +9,54 @@
 			"problemMatcher": [
 				"$msCompile"
 			]
+		},
+		{
+			"type": "shell",
+			"label": "Launch Web Project",
+			"command": "dotnet",
+			"args": ["run", "--project", "RealTimeIntelligence.Web", "--urls", "http://localhost:5000;https://localhost:5001"],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"type": "shell",
+			"label": "Launch Console Project",
+			"command": "dotnet",
+			"args": ["run", "--project", "Core"],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "new"
+			}
+		},
+		{
+			"type": "shell",
+			"label": "Launch New Blazor App",
+			"command": "dotnet",
+			"args": ["run", "--urls", "http://localhost:5000"],
+			"options": {
+				"cwd": "${workspaceFolder}/WebApp/RealTimeIntelligenceApp"
+			},
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
 		}
 	]
 }

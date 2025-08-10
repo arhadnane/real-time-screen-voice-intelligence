@@ -1,0 +1,154 @@
+@page "/dashboard"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Nav
+
+<h3>Dashboard (ancien)</h3>
+<div class="alert alert-info small">Une version plus complète est maintenant sur la page d'accueil (/). Garder cette page pour tests rapides.</div>
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card text-bg-dark mb-3">
+      <div class="card-header">Stats Capture</div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0 small">
+          <li><strong>FPS</strong>: @_fpsDisplay</li>
+          <li><strong>Frames envoyées</strong>: @_sentCount</li>
+          <li><strong>Dernière taille</strong>: @_lastSizeKb KB (@_lastEncoding)</li>
+          <li><strong>Δ ratio</strong>: @_lastChangeRatioDisplay</li>
+          <li><strong>Masque</strong>: @_maskStyle</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header">Contrôles</div>
+      <div class="card-body small">
+        <div class="mb-2">
+          <label class="form-label">Qualité JPEG (@_jpegQuality)</label>
+          <input type="range" min="30" max="95" step="1" @bind="_jpegQuality" class="form-range" />
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Seuil Δ (%)</label>
+          <input type="number" min="0" max="50" step="0.5" class="form-control form-control-sm" @bind="_changePercent" />
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Masque</label>
+          <select class="form-select form-select-sm" @bind="_maskStyle">
+            <option>Black</option>
+            <option>Blur</option>
+            <option>Gaussian</option>
+          </select>
+        </div>
+        <button class="btn btn-sm btn-primary me-2" @onclick="Apply">Appliquer</button>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="()=>_history.Clear()">Clear History</button>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card mb-3">
+      <div class="card-header">Flux</div>
+      <div class="card-body" style="min-height:400px">
+        @if(_lastFrameBase64 is null)
+        {
+          <em>En attente...</em>
+        }
+        else
+        {
+          <img style="max-width:100%;border:1px solid #333" src="data:image/@_lastEncoding;base64,@_lastFrameBase64" />
+        }
+      </div>
+      <div class="card-footer small text-muted">
+        @_lastTimestamp?.ToLocalTime().ToString("HH:mm:ss.fff") | @_fpsDisplay FPS
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Historique (taille KB)</div>
+      <div class="card-body p-2">
+        <div style="height:160px;overflow:auto;font-family:monospace;font-size:11px;">
+          @foreach(var h in _history.TakeLast(200).Reverse())
+          {
+            <div>@h</div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@code {
+  private HubConnection? _hub;
+  private string? _lastFrameBase64;
+  private string _lastEncoding = "png";
+  private DateTime? _lastTimestamp;
+  private int _sentCount;
+  private double _fps;
+  private string _fpsDisplay => _fps.ToString("F1");
+  private int _jpegQuality = 70;
+  private double _changePercent = 1.0; // UI in %, convert to fraction
+  private string _maskStyle = "Gaussian";
+  private List<string> _history = new();
+  private long _lastSizeKb;
+  private string _lastChangeRatioDisplay = "-";
+  private DateTime _lastFrameTime;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _hub = new HubConnectionBuilder()
+      .WithUrl(Nav.ToAbsoluteUri("/realtime"))
+      .WithAutomaticReconnect()
+      .Build();
+
+    _hub.On<object>("ScreenFrame", payload =>
+    {
+      try
+      {
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        _lastFrameBase64 = root.GetProperty("imageBase64").GetString();
+        _lastEncoding = root.TryGetProperty("encoding", out var enc) ? enc.GetString() ?? "jpeg" : "jpeg";
+        if (root.TryGetProperty("timestamp", out var ts))
+          _lastTimestamp = ts.GetDateTime();
+        if (_lastFrameBase64 != null)
+        {
+          _lastSizeKb = (long)(_lastFrameBase64.Length * 3 / 4 / 1024.0);
+          _history.Add($"{DateTime.Now:HH:mm:ss} {_lastSizeKb}KB {_lastEncoding}");
+        }
+        var now = DateTime.UtcNow;
+        if (_lastFrameTime != default)
+        {
+          var dt = (now - _lastFrameTime).TotalSeconds;
+          if (dt > 0) _fps = 1.0 / dt;
+        }
+        _lastFrameTime = now;
+        _sentCount++;
+        InvokeAsync(StateHasChanged);
+      }
+      catch { }
+    });
+
+    await _hub.StartAsync();
+    await _hub.SendAsync("Subscribe", "screen");
+  }
+
+  private async Task Apply()
+  {
+    try
+    {
+      // Apply mask style
+      var maskUrl = $"/api/vision/mask?style={_maskStyle}&blur=8";
+      using var client = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
+      client.DefaultRequestHeaders.Add("X-API-KEY", "dev-key");
+      await client.PostAsync(maskUrl, null);
+
+      // Tune delta & jpeg
+      var changeFrac = _changePercent / 100.0;
+      var tuneUrl = $"/api/vision/tune?change={changeFrac}&jpeg=true&quality={_jpegQuality}";
+      await client.PostAsync(tuneUrl, null);
+    }
+    catch { }
+  }
+
+  public async ValueTask DisposeAsync()
+  {
+    if (_hub != null) { try { await _hub.DisposeAsync(); } catch { } }
+  }
+}

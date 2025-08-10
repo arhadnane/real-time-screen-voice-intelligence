@@ -1,0 +1,44 @@
+@page "/logs"
+@using RealTimeIntelligence.Web.Services
+@inject ActivityLogService LogService
+
+<h3>Logs & Monitoring</h3>
+
+<button class="btn btn-sm btn-outline-danger mb-2" @onclick="Clear">Vider</button>
+
+<table class="table table-sm table-striped">
+    <thead>
+    <tr>
+        <th>Time</th>
+        <th>Type</th>
+        <th>Message</th>
+        <th>Duration</th>
+    </tr>
+    </thead>
+    <tbody>
+    @foreach(var e in _entries)
+    {
+        <tr>
+            <td>@e.Timestamp.ToLocalTime().ToString("HH:mm:ss")</td>
+            <td>@e.Type</td>
+            <td>@e.Message</td>
+            <td>@(e.Duration?.TotalMilliseconds.ToString("F0")) ms</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+@code {
+    private List<ActivityLogEntry> _entries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _entries = (await LogService.GetLogsAsync()).OrderByDescending(x=>x.Timestamp).Take(500).ToList();
+    }
+
+    private async Task Clear()
+    {
+        await LogService.ClearLogsAsync();
+        _entries.Clear();
+    }
+}

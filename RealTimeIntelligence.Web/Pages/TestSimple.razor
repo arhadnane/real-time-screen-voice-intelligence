@@ -1,0 +1,16 @@
+@page "/test-simple"
+
+<h1>Test Simple</h1>
+<p>Si vous voyez ceci, Blazor fonctionne.</p>
+<button class="btn btn-primary" @onclick="Increment">
+    Cliquez-moi (@currentCount)
+</button>
+
+@code {
+    private int currentCount = 0;
+
+    private void Increment()
+    {
+        currentCount++;
+    }
+}

@@ -1,0 +1,68 @@
+@page "/"
+@page "/ultra-simple"
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Ultra Simple</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; font-size: 16px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🧠 Real-Time Intelligence - Test Ultra Simple</h1>
+    
+    <div class="status success">
+        ✅ Cette page fonctionne si vous la voyez !
+    </div>
+    
+    <div class="status info">
+        ℹ️ Système: @(isActive ? "ACTIF" : "INACTIF")
+    </div>
+    
+    <button @onclick="Toggle">
+        @(isActive ? "Arrêter" : "Démarrer") le Système
+    </button>
+    
+    <button @onclick="ShowAlert">
+        Test JavaScript
+    </button>
+    
+    <div style="margin-top: 20px;">
+        <h3>Logs:</h3>
+        <ul>
+            @foreach(var log in logs)
+            {
+                <li>@log</li>
+            }
+        </ul>
+    </div>
+</body>
+</html>
+
+@code {
+    private bool isActive = false;
+    private List<string> logs = new();
+    
+    protected override void OnInitialized()
+    {
+        logs.Add($"Application initialisée à {DateTime.Now:HH:mm:ss}");
+    }
+    
+    private void Toggle()
+    {
+        isActive = !isActive;
+        logs.Add($"Système {(isActive ? "démarré" : "arrêté")} à {DateTime.Now:HH:mm:ss}");
+        StateHasChanged();
+    }
+    
+    private async Task ShowAlert()
+    {
+        logs.Add($"Test JavaScript à {DateTime.Now:HH:mm:ss}");
+        StateHasChanged();
+    }
+}

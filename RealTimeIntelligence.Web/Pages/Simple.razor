@@ -1,0 +1,63 @@
+@page "/simple"
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1>Test Simple</h1>
+            
+            <div class="alert alert-info">
+                <strong>Compteur:</strong> @counter
+            </div>
+            
+            <div class="mb-3">
+                <button class="btn btn-primary me-2" @onclick="IncrementCounter">
+                    Cliquer ici (@counter)
+                </button>
+                
+                <button class="btn btn-success me-2" @onclick="ShowAlert">
+                    Afficher Alerte
+                </button>
+                
+                <button class="btn btn-warning" @onclick="ResetCounter">
+                    Reset
+                </button>
+            </div>
+            
+            <div class="mt-3">
+                <p><strong>Dernière action:</strong> @lastAction</p>
+                <p><strong>Heure:</strong> @DateTime.Now.ToString("HH:mm:ss")</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int counter = 0;
+    private string lastAction = "Aucune";
+
+    private void IncrementCounter()
+    {
+        counter++;
+        lastAction = $"Compteur incrémenté à {counter}";
+        Console.WriteLine($"Button clicked! Counter: {counter}");
+        Console.WriteLine("IncrementCounter method executed.");
+        StateHasChanged();
+    }
+
+    private void ShowAlert()
+    {
+        lastAction = "Alerte affichée";
+        Console.WriteLine("Alert button clicked!");
+        Console.WriteLine("ShowAlert method executed.");
+        StateHasChanged();
+    }
+
+    private void ResetCounter()
+    {
+        counter = 0;
+        lastAction = "Compteur réinitialisé";
+        Console.WriteLine("Reset button clicked!");
+        Console.WriteLine("ResetCounter method executed.");
+        StateHasChanged();
+    }
+}

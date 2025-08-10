@@ -1,0 +1,51 @@
+﻿@page
+@using Microsoft.AspNetCore.Components.Web
+@namespace RealTimeIntelligence.Web.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="~/" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link href="css/site.css" rel="stylesheet" />
+    <link href="RealTimeIntelligence.Web.styles.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="icon" type="image/png" href="favicon.png"/>
+    <component type="typeof(HeadOutlet)" render-mode="Server" />
+</head>
+<body>
+    <div id="blazor-fallback" style="font:14px/1.4 system-ui,Segoe UI,Arial;padding:1rem;border-bottom:1px dashed #666;background:#111;color:#ccc;">
+        Chargement de l'application... (fallback statique). Si ceci reste, la connexion temps réel Blazor Server ne s'est pas initialisée.
+    </div>
+    <component type="typeof(App)" render-mode="Server" />
+
+    <div id="blazor-error-ui">
+        <environment include="Staging,Production">
+            An error has occurred. This application may no longer respond until reloaded.
+        </environment>
+        <environment include="Development">
+            An unhandled exception has occurred. See browser dev tools for details.
+        </environment>
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <script src="_framework/blazor.server.js"></script>
+    <script>
+        console.log("[RTI] _Host chargé, attente de blazor.server.js...");
+        document.addEventListener('DOMContentLoaded', ()=>console.log('[RTI] DOM prêt'));
+        // Blazor Server auto-démarre via blazor.server.js, pas besoin d'appel manuel.
+        window.__blazorStartCheck = setInterval(()=>{
+            if (window['Blazor'] && document.querySelector('app,component,div[data-attr]')) {
+                const fb=document.getElementById('blazor-fallback');
+                if(fb) fb.style.display='none';
+                console.log('[RTI] Blazor runtime détecté.');
+                clearInterval(window.__blazorStartCheck);
+            }
+        },500);
+    </script>
+</body>
+</html>

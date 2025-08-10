@@ -1,5 +1,5 @@
-# Setup DeepSeek Coder model for Real-Time Screen & Voice Intelligence
-Write-Host "🚀 Setting up DeepSeek Coder model..." -ForegroundColor Green
+# Setup Phi3 Mini model for Real-Time Screen & Voice Intelligence
+Write-Host "🚀 Setting up Phi3 Mini model..." -ForegroundColor Green
 Write-Host ""
 
 # Check if Ollama is running
@@ -16,11 +16,12 @@ try {
 }
 
 Write-Host ""
-Write-Host "📦 Pulling DeepSeek Coder 1.3B Instruct model (776 MB)..." -ForegroundColor Yellow
-Write-Host "   This may take a few minutes depending on your internet connection..." -ForegroundColor Gray
+Write-Host "📦 Pulling Phi3 Mini model (2.2 GB)..." -ForegroundColor Yellow
+Write-Host "   This model offers superior reasoning and comprehension abilities." -ForegroundColor Gray
+Write-Host "   Download may take a few minutes depending on your internet connection..." -ForegroundColor Gray
 
 # Pull the model
-$pullProcess = Start-Process -FilePath "ollama" -ArgumentList "pull", "deepseek-coder:1.3b-instruct" -Wait -PassThru
+$pullProcess = Start-Process -FilePath "ollama" -ArgumentList "pull", "phi3:mini" -Wait -PassThru
 
 if ($pullProcess.ExitCode -eq 0) {
     Write-Host ""
@@ -31,7 +32,7 @@ if ($pullProcess.ExitCode -eq 0) {
     Write-Host ""
     
     # Test the model
-    $testProcess = Start-Process -FilePath "ollama" -ArgumentList "run", "deepseek-coder:1.3b-instruct", "Hello, can you help me analyze screen content?" -Wait -PassThru
+    $testProcess = Start-Process -FilePath "ollama" -ArgumentList "run", "phi3:mini", "Hello, can you help me analyze screen content and voice data?" -Wait -PassThru
     
     Write-Host ""
     Write-Host "🎉 Setup complete! Your Real-Time Screen & Voice Intelligence system is ready to use." -ForegroundColor Green

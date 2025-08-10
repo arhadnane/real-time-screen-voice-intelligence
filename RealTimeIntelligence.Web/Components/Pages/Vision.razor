@@ -1,0 +1,213 @@
+@page "/vision"
+@using RealTimeIntelligence.Web.Services
+@inject IntelligenceService IntelligenceService
+
+<PageTitle>Vision & OCR - Real-Time Intelligence</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-6">
+                <i class="fas fa-eye text-warning"></i> Vision & Reconnaissance Optique
+            </h1>
+            <p class="lead">Capture d'écran et extraction de texte en temps réel</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-camera"></i> Capture d'Écran</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Mode de Capture</label>
+                        <select class="form-select" @bind="selectedCaptureMode">
+                            <option value="FullScreen">Écran Complet</option>
+                            <option value="ActiveWindow">Fenêtre Active</option>
+                            <option value="CustomRegion">Région Personnalisée</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Fréquence de Capture (FPS)</label>
+                        <input type="range" class="form-range" min="1" max="10" @bind="captureFps" />
+                        <small class="text-muted">@captureFps FPS</small>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-warning" @onclick="StartCapture" disabled="@isCapturing">
+                            <i class="fas @(isCapturing ? "fa-stop" : "fa-play")"></i>
+                            @(isCapturing ? "Arrêter" : "Démarrer") la Capture
+                        </button>
+                        <button class="btn btn-outline-warning" @onclick="CaptureOnce">
+                            <i class="fas fa-camera"></i> Capture Unique
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-text-width"></i> OCR (Reconnaissance Optique)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Langues de Reconnaissance</label>
+                        <select class="form-select" @bind="selectedLanguages">
+                            <option value="eng">Anglais</option>
+                            <option value="fra">Français</option>
+                            <option value="eng+fra">Anglais + Français</option>
+                            <option value="spa">Espagnol</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" @bind="enableROI" id="enableROI">
+                            <label class="form-check-label" for="enableROI">
+                                Détection de Région d'Intérêt (ROI)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="text-muted small">Textes Détectés</div>
+                            <div class="h4 text-info">@ocrDetectionCount</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted small">Confiance Moyenne</div>
+                            <div class="h4 text-success">@averageConfidence.ToString("F1")%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-image"></i> Aperçu et Résultats</h5>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(lastCaptureInfo))
+                    {
+                        <div class="alert alert-success">
+                            <strong>Dernière Capture:</strong> @lastCaptureInfo
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(lastOcrResult))
+                    {
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Texte Extrait par OCR</h6>
+                            </div>
+                            <div class="card-body">
+                                <pre class="mb-0" style="white-space: pre-wrap; max-height: 300px; overflow-y: auto;">@lastOcrResult</pre>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-camera fa-3x mb-3"></i>
+                            <p>Aucune capture effectuée</p>
+                            <p class="small">Cliquez sur "Capture Unique" ou démarrez la capture automatique</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string selectedCaptureMode = "FullScreen";
+    private int captureFps = 5;
+    private bool isCapturing = false;
+    private string selectedLanguages = "eng+fra";
+    private bool enableROI = true;
+    
+    private string lastCaptureInfo = string.Empty;
+    private string lastOcrResult = string.Empty;
+    private int ocrDetectionCount = 0;
+    private double averageConfidence = 0.0;
+    
+    private Timer? captureTimer;
+
+    private async Task StartCapture()
+    {
+        if (isCapturing)
+        {
+            StopCapture();
+        }
+        else
+        {
+            isCapturing = true;
+            var interval = TimeSpan.FromSeconds(1.0 / captureFps);
+            
+            captureTimer = new Timer(async _ => 
+            {
+                await InvokeAsync(async () => await CaptureOnce());
+            }, null, TimeSpan.Zero, interval);
+        }
+    }
+
+    private void StopCapture()
+    {
+        isCapturing = false;
+        captureTimer?.Dispose();
+        captureTimer = null;
+    }
+
+    private async Task CaptureOnce()
+    {
+        try
+        {
+            var timestamp = DateTime.Now;
+            lastCaptureInfo = $"Capture effectuée le {timestamp:HH:mm:ss} - Mode: {selectedCaptureMode}";
+            
+            // Simuler OCR
+            await SimulateOCR();
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            lastCaptureInfo = $"Erreur lors de la capture: {ex.Message}";
+        }
+    }
+
+    private async Task SimulateOCR()
+    {
+        await Task.Delay(Random.Shared.Next(200, 800));
+        
+        var sampleTexts = new[]
+        {
+            "Microsoft Visual Studio Code\nFile Edit Selection View Go Run Terminal Help\nProgram.cs\nusing System;\nnamespace MyApp\n{\n    class Program\n    {\n        static void Main(string[] args)\n        {\n            Console.WriteLine(\"Hello World!\");\n        }\n    }\n}",
+            "Google Chrome\nRechercher ou saisir une URL\nReal-time screen capture and voice recognition\nDéveloppement d'applications en temps réel\nIntelligence artificielle et machine learning",
+            "Microsoft Word\nDocument sans titre\nRapport de Projet\nIntroduction\nCe rapport présente les résultats de notre analyse sur l'intelligence artificielle en temps réel...",
+            "Windows Terminal\nPS C:\\Users\\Dev> dotnet run\nBuilding...\ninfo: Microsoft.Hosting.Lifetime[14]\n      Now listening on: http://localhost:5000\nApplication started. Press Ctrl+C to shut down.",
+            "Explorateur de fichiers\nCe PC > Documents > Projets > RealTimeIntelligence\nFichiers récents\nCore/\nAI/\nVision/\nAudio/\nTests/"
+        };
+        
+        lastOcrResult = sampleTexts[Random.Shared.Next(sampleTexts.Length)];
+        ocrDetectionCount++;
+        
+        // Simuler confiance
+        var confidence = Random.Shared.NextDouble() * 30 + 70; // 70-100%
+        averageConfidence = (averageConfidence * (ocrDetectionCount - 1) + confidence) / ocrDetectionCount;
+    }
+
+    public void Dispose()
+    {
+        StopCapture();
+    }
+}

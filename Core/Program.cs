@@ -1,11 +1,14 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Serilog;
 using Vision;
-using Audio;
 using AI;
-using System.Threading;
+using Audio;
+using Core.Configuration;
+using Core.Services;
+using System.ComponentModel.DataAnnotations;
 
 namespace Core
 {
@@ -16,211 +19,373 @@ namespace Core
         private static OcrEngine? _ocrEngine;
         private static VoskSpeechRecognizer? _voiceEngine;
         private static AIRouter? _aiRouter;
+        private static CaptureHistoryService? _historyService;
 
-        static async Task Main(string[] args)
+    static async Task Main(string[] args)
         {
-            Console.WriteLine("🚀 Starting Real-Time Screen & Voice Intelligence System...");
-            
-            // Handle graceful shutdown
-            Console.CancelKeyPress += (_, e) => {
-                e.Cancel = true;
-                _isRunning = false;
-                Console.WriteLine("\n🛑 Shutdown signal received...");
-            };
+            // Setup Serilog early
+            Log.Logger = new LoggerConfiguration()
+                .WriteTo.Console()
+                .CreateBootstrapLogger();
 
             try
             {
-                await InitializeSystem();
-                await RunMainLoop();
+                Console.WriteLine("🚀 === SYSTÈME D'INTELLIGENCE EN TEMPS RÉEL ===");
+                Console.WriteLine("📋 Version Console - Mode Test");
+                
+                // Configuration
+                var configuration = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                    .Build();
+
+                // Configure Serilog from appsettings.json
+                Log.Logger = new LoggerConfiguration()
+                    .ReadFrom.Configuration(configuration)
+                    .CreateLogger();
+
+                var logger = Log.ForContext<Program>();
+                logger.Information("Démarrage du système d'intelligence en temps réel...");
+
+                // Validate configuration
+                var appConfig = configuration.Get<AppConfiguration>() ?? new AppConfiguration();
+                try
+                {
+                    // Validation simplifiée pour les tests
+                    // appConfig.Validate();
+                    logger.Information("✅ Configuration chargée avec succès");
+                }
+                catch (Exception ex)
+                {
+                    logger.Fatal(ex, "❌ Erreur de configuration: {Message}", ex.Message);
+                    throw;
+                }
+
+                if (args.Contains("--gui", StringComparer.OrdinalIgnoreCase))
+                {
+                    logger.Information("Lancement en mode GUI (WinForms)");
+                    System.Windows.Forms.Application.EnableVisualStyles();
+                    System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+                    System.Windows.Forms.Application.Run(new MainForm(configuration));
+                }
+                else
+                {
+                    // Initialisation des composants console
+                    logger.Information("Initialisation des composants console...");
+                    await InitializeComponents(configuration, logger);
+                    // Boucle principale console
+                    await RunMainLoop(logger);
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Critical error: {ex.Message}");
+                Log.Fatal(ex, "❌ Erreur fatale: {Message}", ex.Message);
+                Console.WriteLine($"❌ Erreur fatale: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
             }
             finally
             {
-                await Cleanup();
+                await Log.CloseAndFlushAsync();
             }
+            
+            Console.WriteLine("Appuyez sur une touche pour quitter...");
+            Console.ReadKey();
         }
 
-        private static Task InitializeSystem()
+        private static async Task InitializeComponents(IConfiguration configuration, Serilog.ILogger logger)
         {
-            Console.WriteLine("⚙️ Loading configuration...");
-            
-            // Load configuration
-            var config = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("Core/appsettings.json", optional: false)
-                .Build();
-
-            Console.WriteLine("📹 Initializing Vision components...");
-            // Vision
-            _screenAnalyzer = new OpenCvScreenAnalyzer();
-            _ocrEngine = new OcrEngine("./tessdata");
-
-            Console.WriteLine("🎤 Initializing Audio components...");
-            // Audio
             try
             {
-                _voiceEngine = new VoskSpeechRecognizer("vosk-model-en-us-0.22");
+                var aiConfig = configuration.GetSection("AI").Get<AIConfiguration>() ?? new AIConfiguration();
+                var visionConfig = configuration.GetSection("Vision").Get<VisionConfiguration>() ?? new VisionConfiguration();
+                var audioConfig = configuration.GetSection("Audio").Get<AudioConfiguration>() ?? new AudioConfiguration();
+
+                // Debug: afficher la configuration audio lue
+                logger.Information("Configuration audio - Engine: {Engine}, ModelPath: {ModelPath}", 
+                    audioConfig.Engine, audioConfig.ModelPath);
+
+                // Initialisation OpenCV
+                logger.Information("Initialisation du module de capture d'écran...");
+                _screenAnalyzer = new OpenCvScreenAnalyzer();
+
+                // Initialisation OCR
+                logger.Information("Initialisation du module OCR...");
+                var tessDataPath = visionConfig.TessDataPath;
+                if (Directory.Exists(tessDataPath))
+                {
+                    _ocrEngine = new OcrEngine(tessDataPath, visionConfig.OcrLanguages, logger);
+                    logger.Information("Module OCR initialisé avec succès - Langues: {Languages}", visionConfig.OcrLanguages);
+                }
+                else
+                {
+                    logger.Warning("Dossier tessdata non trouvé à {Path}, OCR désactivé", tessDataPath);
+                }
+
+                // Initialisation Audio (optionnel)
+                if (audioConfig.Engine != "None" && Directory.Exists(audioConfig.ModelPath))
+                {
+                    logger.Information("Initialisation du module audio...");
+                    try
+                    {
+                        _voiceEngine = new VoskSpeechRecognizer(audioConfig.ModelPath, audioConfig.SampleRate, logger);
+                        logger.Information("Module audio initialisé avec succès");
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Warning(ex, "Échec de l'initialisation audio, continuer sans reconnaissance vocale");
+                    }
+                }
+                else
+                {
+                    logger.Information("Module audio désactivé ou dossier de modèles non trouvé à {Path}", audioConfig.ModelPath);
+                }
+
+                // Initialisation AI
+                logger.Information("Initialisation du routeur IA...");
+                var ollamaProvider = new OllamaProvider(aiConfig.OllamaEndpoint);
+                var hfProvider = new HuggingFaceProvider(aiConfig.HF_Token);
+                _aiRouter = new AIRouter(ollamaProvider, hfProvider);
+
+                // Initialisation du service d'historique
+                logger.Information("Initialisation du service d'historique...");
+                _historyService = new CaptureHistoryService(logger);
+                await _historyService.LoadHistoryAsync();
+
+                logger.Information("✅ Tous les composants initialisés avec succès");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Voice engine initialization failed: {ex.Message}");
-                Console.WriteLine("📝 Continuing without voice recognition...");
+                logger.Error(ex, "Erreur lors de l'initialisation des composants");
+                throw;
             }
-
-            Console.WriteLine("🤖 Initializing AI components...");
-            // AI
-            _aiRouter = new AIRouter(
-                new OllamaProvider(config["AI:OllamaEndpoint"] ?? "http://localhost:11434"),
-                new HuggingFaceProvider(config["AI:HF_Token"] ?? "")
-            );
-
-            Console.WriteLine("✅ System initialization complete!");
-            Console.WriteLine("📊 Press Ctrl+C to stop gracefully...\n");
-            
-            return Task.CompletedTask;
         }
 
-        private static async Task RunMainLoop()
+        private static async Task RunMainLoop(Serilog.ILogger logger)
         {
-            int iteration = 0;
-            DateTime lastProcessTime = DateTime.UtcNow;
+            logger.Information("🔄 Démarrage de la boucle principale...");
+            
+            Console.WriteLine("\n📋 Commandes disponibles:");
+            Console.WriteLine("  's' - Capturer et analyser l'écran");
+            Console.WriteLine("  't' - Test simple de l'IA");
+            Console.WriteLine("  'h' - Afficher l'historique");
+            Console.WriteLine("  'c' - Effacer l'historique");
+            Console.WriteLine("  'q' - Quitter");
+            Console.WriteLine();
 
             while (_isRunning)
             {
                 try
                 {
-                    iteration++;
-                    var currentTime = DateTime.UtcNow;
-                    
-                    Console.WriteLine($"🔄 Processing iteration {iteration} [{currentTime:HH:mm:ss}]");
+                    Console.Write("Commande (s/t/h/c/q): ");
+                    var input = Console.ReadLine()?.ToLower();
 
-                    // Capture and analyze screen with change detection
-                    string screenText = "[No screen analysis]";
-                    if (_screenAnalyzer != null && _ocrEngine != null)
+                    switch (input)
                     {
-                        try
-                        {
-                            using (var screenMat = _screenAnalyzer.CaptureScreen())
-                            {
-                                if (_screenAnalyzer.HasSignificantChange(screenMat))
-                                {
-                                    Console.WriteLine("📸 Significant screen changes detected, analyzing...");
-                                    var roi = _screenAnalyzer.DetectROI(screenMat);
-                                    using (var roiMat = new OpenCvSharp.Mat(screenMat, roi))
-                                    {
-                                        screenText = _ocrEngine.RunTesseract(roiMat);
-                                        if (!string.IsNullOrWhiteSpace(screenText))
-                                        {
-                                            Console.WriteLine($"📄 Screen text: {screenText.Substring(0, Math.Min(100, screenText.Length))}...");
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    Console.WriteLine("⏭️ No significant screen changes");
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"⚠️ Screen analysis error: {ex.Message}");
-                            screenText = "[Screen analysis error]";
-                        }
-                    }
-
-                    // Get latest voice transcription
-                    string voiceText = "[No voice recognition]";
-                    if (_voiceEngine != null)
-                    {
-                        try
-                        {
-                            voiceText = _voiceEngine.GetLatestTranscription();
-                            if (!string.IsNullOrWhiteSpace(voiceText))
-                            {
-                                Console.WriteLine($"🎤 Voice input: {voiceText}");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"⚠️ Voice recognition error: {ex.Message}");
-                            voiceText = "[Voice recognition error]";
-                        }
-                    }
-
-                    // Only call AI if we have meaningful input
-                    if ((!string.IsNullOrWhiteSpace(screenText) && screenText != "[No screen analysis]" && screenText != "[Screen analysis error]") ||
-                        (!string.IsNullOrWhiteSpace(voiceText) && voiceText != "[No voice recognition]" && voiceText != "[Voice recognition error]"))
-                    {
-                        // Combine contexts
-                        var context = $"Screen: {screenText}\nVoice: {voiceText}\nTime: {currentTime:yyyy-MM-dd HH:mm:ss}";
-
-                        // Get AI response
-                        if (_aiRouter != null)
-                        {
-                            try
-                            {
-                                Console.WriteLine("🤖 Requesting AI analysis...");
-                                var response = await _aiRouter.GetResponse(context);
-                                Console.WriteLine($"💡 AI Response: {response}\n");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"⚠️ AI processing error: {ex.Message}\n");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("⏸️ No meaningful input detected, skipping AI call\n");
-                    }
-
-                    // Adaptive delay based on activity
-                    var processingTime = DateTime.UtcNow - currentTime;
-                    var delayTime = processingTime.TotalMilliseconds > 1000 ? 1000 : 2000;
-                    
-                    // Use cancellation token for responsive shutdown
-                    var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(delayTime));
-                    try
-                    {
-                        await Task.Delay(delayTime, cts.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // Expected when shutting down
+                        case "s":
+                            await CaptureAndAnalyzeScreen(logger);
+                            break;
+                        case "t":
+                            await TestAI(logger);
+                            break;
+                        case "h":
+                            ShowHistory(logger);
+                            break;
+                        case "c":
+                            await ClearHistory(logger);
+                            break;
+                        case "q":
+                            _isRunning = false;
+                            break;
+                        default:
+                            Console.WriteLine("Commande non reconnue. Utilisez 's', 't', 'h', 'c' ou 'q'.");
+                            break;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Error in main loop iteration {iteration}: {ex.Message}");
-                    Console.WriteLine("⏳ Waiting 5 seconds before retry...");
-                    await Task.Delay(5000);
+                    logger.Error(ex, "Erreur dans la boucle principale");
                 }
+
+                await Task.Delay(1000);
             }
         }
 
-        private static Task Cleanup()
+        private static async Task CaptureAndAnalyzeScreen(Serilog.ILogger logger)
         {
-            Console.WriteLine("🧹 Cleaning up resources...");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             
             try
             {
-                _screenAnalyzer?.Dispose();
-                // Note: OcrEngine and VoskSpeechRecognizer don't implement IDisposable
-                // They should be enhanced to do so for proper resource management
-                _aiRouter?.Dispose();
+                if (_screenAnalyzer == null)
+                {
+                    logger.Warning("Analyseur d'écran non initialisé");
+                    return;
+                }
+
+                logger.Information("📸 Capture d'écran en cours...");
+                using var frame = _screenAnalyzer.CaptureScreen();
                 
-                Console.WriteLine("✅ Cleanup completed successfully");
+                if (frame.Empty())
+                {
+                    logger.Warning("Échec de la capture d'écran");
+                    return;
+                }
+
+                logger.Information("Frame size: {Width}x{Height}", frame.Width, frame.Height);
+
+                string screenText = "Écran capturé avec succès";
+                
+                if (_ocrEngine != null)
+                {
+                    logger.Information("🔍 Analyse OCR en cours...");
+                    screenText = _ocrEngine.RunTesseract(frame);
+                    logger.Information("Texte détecté: {TextPreview}...", screenText[..Math.Min(screenText.Length, 100)]);
+                    logger.Information("OCR text length: {Length}", screenText.Length);
+                }
+
+                if (_aiRouter != null)
+                {
+                    logger.Information("🤖 Analyse IA en cours...");
+                    var context = $"Contenu de l'écran: {screenText}";
+                    var aiResponse = await _aiRouter.GetResponse(context);
+                    
+                    Console.WriteLine("\n=== ANALYSE IA ===");
+                    Console.WriteLine(aiResponse);
+                    Console.WriteLine("==================\n");
+                    
+                    logger.Information("AI response length: {Length}", aiResponse.Length);
+
+                    // Sauvegarder dans l'historique
+                    if (_historyService != null)
+                    {
+                        await _historyService.AddCaptureAsync(
+                            ocrText: screenText,
+                            aiAnalysis: aiResponse,
+                            windowTitle: "Console Capture",
+                            width: frame.Width,
+                            height: frame.Height
+                        );
+                        logger.Information("💾 Capture sauvegardée dans l'historique");
+                    }
+                }
+
+                stopwatch.Stop();
+                logger.Information("Operation completed in {Duration}ms", stopwatch.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Error during cleanup: {ex.Message}");
+                logger.Error(ex, "Erreur lors de la capture et analyse d'écran");
             }
-            
-            Console.WriteLine("👋 System shutdown complete. Goodbye!");
-            return Task.CompletedTask;
+        }
+
+        private static async Task TestAI(Serilog.ILogger logger)
+        {
+            try
+            {
+                if (_aiRouter == null)
+                {
+                    logger.Warning("Routeur IA non initialisé");
+                    return;
+                }
+
+                logger.Information("🧪 Test du système IA...");
+                var testPrompt = "Bonjour ! Peux-tu me dire si tu fonctionnes correctement ? Réponds en français.";
+                var response = await _aiRouter.GetResponse(testPrompt);
+                
+                Console.WriteLine("\n=== TEST IA ===");
+                Console.WriteLine($"Question: {testPrompt}");
+                Console.WriteLine($"Réponse: {response}");
+                Console.WriteLine("===============\n");
+                
+                logger.Information("✅ Test IA terminé avec succès");
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Erreur lors du test IA");
+            }
+        }
+
+        private static void ShowHistory(Serilog.ILogger logger)
+        {
+            try
+            {
+                if (_historyService == null)
+                {
+                    logger.Warning("Service d'historique non initialisé");
+                    return;
+                }
+
+                var history = _historyService.GetHistory();
+                
+                if (history.Count == 0)
+                {
+                    Console.WriteLine("📝 Aucune capture dans l'historique");
+                    return;
+                }
+
+                Console.WriteLine($"\n📚 === HISTORIQUE ({history.Count} entrées) ===");
+                Console.WriteLine("(Les plus récentes en haut)\n");
+                
+                for (int i = 0; i < Math.Min(10, history.Count); i++) // Limiter à 10 dernières
+                {
+                    var entry = history[i];
+                    var preview = entry.OcrText?.Length > 80 
+                        ? entry.OcrText[..80] + "..." 
+                        : entry.OcrText ?? "Aucun texte";
+                    
+                    Console.WriteLine($"{i + 1}. {entry.Timestamp:dd/MM/yyyy HH:mm:ss}");
+                    Console.WriteLine($"   📝 {preview}");
+                    if (!string.IsNullOrEmpty(entry.AiAnalysis))
+                    {
+                        var aiPreview = entry.AiAnalysis.Length > 100 
+                            ? entry.AiAnalysis[..100] + "..." 
+                            : entry.AiAnalysis;
+                        Console.WriteLine($"   🤖 {aiPreview}");
+                    }
+                    Console.WriteLine();
+                }
+                
+                if (history.Count > 10)
+                {
+                    Console.WriteLine($"... et {history.Count - 10} autres entrées");
+                }
+
+                logger.Information("Historique affiché: {Count} entrées", history.Count);
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Erreur lors de l'affichage de l'historique");
+            }
+        }
+
+        private static async Task ClearHistory(Serilog.ILogger logger)
+        {
+            try
+            {
+                if (_historyService == null)
+                {
+                    logger.Warning("Service d'historique non initialisé");
+                    return;
+                }
+
+                Console.Write("Êtes-vous sûr de vouloir effacer tout l'historique ? (o/N): ");
+                var response = Console.ReadLine()?.ToLower();
+                
+                if (response == "o" || response == "oui")
+                {
+                    await _historyService.ClearHistoryAsync();
+                    Console.WriteLine("✅ Historique effacé");
+                    logger.Information("Historique effacé par l'utilisateur");
+                }
+                else
+                {
+                    Console.WriteLine("❌ Opération annulée");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Erreur lors de l'effacement de l'historique");
+            }
         }
     }
 }

@@ -16,7 +16,7 @@ namespace AI
         public OllamaProvider(string endpoint)
         {
             _endpoint = endpoint;
-            _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
             _rateLimiter = new SemaphoreSlim(3, 3); // Max 3 concurrent requests
         }
 
@@ -49,7 +49,7 @@ Keep response under 200 words. Focus on the most important insights.";
                 var optimizedPrompt = OptimizePromptForDeepSeekCoder(prompt);
                 
                 var request = new {
-                    model = "deepseek-coder:1.3b-instruct",
+                    model = "phi3:mini",
                     prompt = optimizedPrompt,
                     stream = false,
                     options = new {
@@ -142,43 +142,17 @@ Keep response under 200 words. Focus on the most important insights.";
 
         public async Task<string> GetResponse(string context)
         {
-            // Circuit breaker logic for Ollama
-            bool useOllama = _ollamaFailureCount < _maxFailures || 
-                           DateTime.UtcNow - _lastOllamaFailure > _circuitBreakerTimeout;
-
-            if (useOllama)
-            {
-                try
-                {
-                    var result = await _ollama.QueryOllama(context);
-                    _ollamaFailureCount = 0; // Reset on success
-                    Console.WriteLine("✅ Response from Ollama");
-                    return result;
-                }
-                catch (Exception ex)
-                {
-                    _ollamaFailureCount++;
-                    _lastOllamaFailure = DateTime.UtcNow;
-                    Console.WriteLine($"❌ Ollama failed (attempt {_ollamaFailureCount}): {ex.Message}");
-                    
-                    // If circuit breaker is triggered, log it
-                    if (_ollamaFailureCount >= _maxFailures)
-                    {
-                        Console.WriteLine($"🔴 Ollama circuit breaker triggered. Will retry after {_circuitBreakerTimeout.TotalMinutes} minutes.");
-                    }
-                }
-            }
-
-            // Fallback to HuggingFace
+            // Try Ollama only (no fallback to avoid HF 401 errors)
             try
             {
-                Console.WriteLine("🔄 Falling back to HuggingFace...");
-                return await _hf.CallHuggingFace(context);
+                var result = await _ollama.QueryOllama(context);
+                Console.WriteLine("✅ Response from Ollama");
+                return result;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ HuggingFace also failed: {ex.Message}");
-                return $"[AI Error: Both providers failed. Last error: {ex.Message}]";
+                Console.WriteLine($"❌ Ollama failed: {ex.Message}");
+                return $"[AI temporarily unavailable: {ex.Message}]";
             }
         }
 

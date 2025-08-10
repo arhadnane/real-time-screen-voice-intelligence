@@ -1,0 +1,62 @@
+@page "/audio"
+@using Microsoft.AspNetCore.Components
+
+<PageTitle>Audio</PageTitle>
+
+<div class="container py-4">
+    <h2><i class="fas fa-microphone text-info"></i> Module Audio (Version simplifiée)</h2>
+    <p class="text-muted">La page audio détaillée a été temporairement simplifiée pour résoudre des erreurs de compilation Razor. Nous rétablirons les fonctionnalités avancées après stabilisation de la build.</p>
+
+    <button class="btn btn-primary" @onclick="Toggle">@(isRecording ? "Arrêter" : "Démarrer") simulation</button>
+
+    <div class="mt-4">
+        @if(transcriptions.Count == 0)
+        {
+            <em>Aucune transcription simulée.</em>
+        }
+        else
+        {
+            <ul class="list-group">
+                @foreach(var t in transcriptions.OrderByDescending(t=>t.Timestamp).Take(10))
+                {
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>@t.Text</span>
+                        <small class="text-muted">@t.Timestamp.ToString("HH:mm:ss")</small>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>
+
+@code {
+    private bool isRecording;
+    private Timer? timer;
+    private List<Transcription> transcriptions = new();
+
+    private record Transcription(DateTime Timestamp, string Text);
+
+    private async Task Toggle()
+    {
+        if(isRecording)
+        {
+            isRecording = false;
+            timer?.Dispose();
+        }
+        else
+        {
+            isRecording = true;
+            timer = new Timer(_ =>
+            {
+                InvokeAsync(() =>
+                {
+                    transcriptions.Add(new Transcription(DateTime.Now, "Phrase simulée " + Random.Shared.Next(100)));
+                    StateHasChanged();
+                });
+            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
+        }
+        await Task.CompletedTask;
+    }
+
+    public void Dispose() => timer?.Dispose();
+}
