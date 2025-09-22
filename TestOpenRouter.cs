@@ -8,7 +8,8 @@ class Program
     {
         Console.WriteLine("🧪 Test OpenRouter...");
         
-        var provider = new OpenRouterProvider("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");
+        // Replace with your actual OpenRouter API key
+        var provider = new OpenRouterProvider("YOUR_OPENROUTER_API_KEY_HERE");
         
         try
         {
